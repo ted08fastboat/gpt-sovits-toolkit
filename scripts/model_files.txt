@@ -1,0 +1,16 @@
+chinese-hubert-base/config.json
+chinese-hubert-base/preprocessor_config.json
+chinese-hubert-base/pytorch_model.bin
+chinese-roberta-wwm-ext-large/config.json
+chinese-roberta-wwm-ext-large/pytorch_model.bin
+chinese-roberta-wwm-ext-large/tokenizer.json
+gsv-v2final-pretrained/s1bert25hz-5kh-longer-epoch=12-step=369668.ckpt
+gsv-v2final-pretrained/s2G2333k.pth
+s1bert25hz-2kh-longer-epoch=68e-step=50232.ckpt
+s2G488k.pth
+s1v3.ckpt
+v2Pro/s2Gv2Pro.pth
+v2Pro/s2Gv2ProPlus.pth
+sv/pretrained_eres2netv2w24s4ep4.ckpt
+gsv-v4-pretrained/s2Gv4.pth
+gsv-v4-pretrained/vocoder.pth

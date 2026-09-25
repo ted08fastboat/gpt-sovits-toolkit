@@ -1,0 +1,36 @@
+services:
+  voiceui:
+    build:
+      context: .
+      args:
+        PIP_INDEX: ${PIP_INDEX:-https://pypi.tuna.tsinghua.edu.cn/simple}
+        TORCH_INDEX: ${TORCH_INDEX:-https://mirrors.aliyun.com/pytorch-wheels/cpu}
+    image: gptsovits-voiceui:latest
+    container_name: gptsovits-voiceui
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      PORT: "8000"
+      # 首次启动自动下载缺失的预训练模型（约 3.2GB）；已有模型可设 0 跳过
+      AUTO_FETCH: "${AUTO_FETCH:-1}"
+      HF_ENDPOINT: "${HF_ENDPOINT:-https://hf-mirror.com}"
+      PRELOAD: "1"
+    volumes:
+      # 预训练模型（可用本机已下好的目录，见 .env）
+      - ${PRETRAINED_DIR:-./models/pretrained_models}:/repo/GPT_SoVITS/pretrained_models
+      - ${G2PW_DIR:-./models/G2PWModel}:/repo/GPT_SoVITS/text/G2PWModel
+      - ${NLTK_DIR:-./models/nltk_data}:/repo/nltk_data
+      # 音色权重目录（里面放 GPT_weights_v2Pro/、SoVITS_weights_v2Pro/ 等）
+      - ${WEIGHTS_DIR:-./weights}:/data/weights
+      # 参考音色与输出
+      - ./references:/data/references
+      - ./outputs:/data/outputs
+    restart: unless-stopped
+    # ---------- 需要 NVIDIA GPU 时：取消下面的注释，并改用 CUDA 版镜像 ----------
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
