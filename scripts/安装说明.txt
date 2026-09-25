@@ -1,0 +1,53 @@
+GPT-SoVITS 离线整合包（Apple Silicon Mac 专用）
+================================================================
+
+【这个包是什么】
+  一套已经配好、可离线运行的 GPT-SoVITS 语音克隆环境：源码 + 预训练模型 +
+  中文语音模型权重 + 独立 Python 3.11 运行时 + 全部依赖 + 内置 ffmpeg。
+  解压后双击「安装.command」即可，**不需要联网、不需要装 Python、不需要 brew**。
+
+【给谁用 / 什么机器能用】
+  ✅ Apple Silicon Mac（M1/M2/M3/M4，arm64），macOS 12 及以上
+  ❌ Intel Mac、Windows、Linux 不能用这个包（架构不同，需要单独的包）
+  需要约 6GB 可用磁盘空间。
+
+【怎么装（对方操作）】
+  1. 把整个 tar.gz 拷到那台 Mac（移动硬盘 / 网盘都行）
+  2. 双击解压（macOS 自带归档工具即可），得到一个文件夹
+  3. 双击里面的「安装.command」
+     · 首次双击若提示“无法验证开发者”：右键该文件 →「打开」→ 再确认一次
+     · 装好后会自动把「GPT-SoVITS一键克隆」放到桌面，并播放一句自检语音
+  4. 启动方式：
+     · WebUI（图形界面）：双击桌面「GPT-SoVITS WebUI.command」→ 浏览器打开
+       http://127.0.0.1:9874
+     · 一键克隆（命令行）：双击桌面「GPT-SoVITS一键克隆/一键克隆.command」
+       输入台词回车即可，成品存到该文件夹的「输出音频」里
+
+【包里有什么】
+  GPT-SoVITS/                        完整环境（约 5GB）
+   ├── GPT_SoVITS/pretrained_models/ 中文 BERT/HuBERT、v2Pro、v2ProPlus、v2、v4 底模、G2PW、语种检测
+   ├── GPT_weights_v2Pro/ SoVITS_weights_v2Pro/    微调音色「示例音色」
+   ├── GPT_weights_v2/  SoVITS_weights_v2/         另一套示例音色（v2）
+   ├── venv/ python/ nltk_data/      依赖、Python 3.11.14 运行时、NLTK 数据
+   ├── start-webui.sh  start-api.sh  启动脚本
+   ├── say.sh  tts_clone.py 合成引擎
+   └── 使用说明.md
+  GPT-SoVITS一键克隆/                一键克隆工具（会装到桌面）
+   ├── 一键克隆.command  批量克隆.command  台词.txt
+   ├── 参考音频/（当前默认=男声 Rocko，含备用女声/男声）  输出音频/
+   └── 使用说明.txt
+  安装.command / 安装说明.txt        本安装器与说明
+
+【注意与声明】
+  · 音色模型来自第三方（作者或原说话人的声音）；
+    转发给别人前请确认这没问题，不要用于冒充他人、诈骗或任何违法用途。
+  · GPT-SoVITS 本体是 MIT 协议开源项目：https://github.com/RVC-Boss/GPT-SoVITS
+  · 只支持 CPU 推理（Apple Silicon 的 MPS 在主推理路径上不被支持），
+    一句 20 来字的合成大约 5~10 秒。
+  · 日文/粤语/韩语依赖未包含（pyopenjtalk 等在 arm64 上需自行编译），中文英文可用。
+
+【出问题怎么办】
+  · 双击没反应 / 提示权限：在「系统设置 → 隐私与安全性」里允许该脚本运行，
+    或右键文件选「打开」。
+  · 报“找不到 venv / python”：说明解压不完整或直接移动过文件，重新解压再装一次。
+  · 其它报错：把终端里的输出整段发回给打包的人。

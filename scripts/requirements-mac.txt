@@ -1,0 +1,44 @@
+# GPT-SoVITS macOS (arm64) 中文推理依赖
+# 基于官方 requirements.txt，去掉需要 C++ 编译/非中文语种的可选项：
+#   - pyopenjtalk (日文, Mac 无 wheel)：日文不可用，中文不受影响（代码里 try/except 导入）
+#   - ToJyutping / g2pk2 / ko_pron / python_mecab_ko (粤语/韩语)
+#   - 去掉 --no-binary=opencc（改用官方 arm64 wheel）
+# jieba_fast 单独安装/替换为 jieba 兼容层（见 install 脚本）
+torch==2.6.0
+torchaudio==2.6.0
+jieba_fast
+numpy<2.0
+scipy
+tensorboard
+librosa==0.10.2
+numba
+pytorch-lightning>=2.4
+gradio<5
+ffmpeg-python
+onnxruntime
+tqdm
+cn2an
+pypinyin
+g2p_en
+sentencepiece
+transformers>=4.51,<5
+peft<0.18.0
+chardet
+PyYAML
+psutil
+jieba
+split-lang
+fast_langdetect>=0.3.1
+wordsegment
+rotary_embedding_torch
+opencc
+fastapi[standard]==0.115.6
+starlette==0.41.3
+x_transformers
+torchmetrics<=1.5
+pydantic<=2.10.6
+ctranslate2>=4.0,<5
+av>=11
+funasr>=1.3.7
+modelscope
+imageio-ffmpeg

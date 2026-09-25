@@ -1,0 +1,39 @@
+# 模型与运行产物：都不进仓库
+models/
+downloads/
+venv/
+uv-cache/
+uv-python/
+test/
+build/
+wheels/
+outputs/
+references/
+weights/
+data/
+
+# 音频与权重
+*.wav
+*.mp3
+*.m4a
+*.aiff
+*.flac
+*.ckpt
+*.pth
+*.onnx
+*.bin
+*.safetensors
+
+# 日志与临时文件
+*.log
+*.part
+*.zip
+*.tar.gz
+.DS_Store
+__pycache__/
+*.pyc
+ui_state.json
+weight.json
+
+# Release 附件暂存
+.release-assets/

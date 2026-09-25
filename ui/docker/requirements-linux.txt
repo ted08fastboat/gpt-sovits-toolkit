@@ -1,0 +1,32 @@
+# GPT-SoVITS 语音克隆 UI · Linux 依赖（CPU）
+# torch / torchaudio 在 Dockerfile 里单独用 CPU 索引安装，这里不列
+numpy<2.0
+scipy
+tensorboard
+librosa==0.10.2
+numba
+pytorch-lightning>=2.4
+gradio<5
+ffmpeg-python
+onnxruntime
+cn2an
+pypinyin
+g2p_en
+sentencepiece
+transformers>=4.51,<5
+peft<0.18.0
+chardet
+PyYAML
+psutil
+jieba
+split-lang
+fast_langdetect>=0.3.1
+wordsegment
+rotary_embedding_torch
+fastapi[standard]==0.115.6
+starlette==0.41.3
+x_transformers
+torchmetrics<=1.5
+pydantic<=2.10.6
+ctranslate2>=4.0,<5
+av>=11
