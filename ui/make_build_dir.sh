@@ -3,6 +3,10 @@
 #   build/ = Dockerfile + compose + 应用 + GPT-SoVITS 源码 + jieba 兼容层 + 挂载用的空目录 + .env
 # 之后 cd ui/build && docker compose up -d --build 即可
 set -eu
+# 用法：./make_build_dir.sh [--cuda]
+#   --cuda 用 NVIDIA GPU 版（Dockerfile.cuda / docker-compose.cuda.yml，torch 走 cu124）
+MODE="cpu"
+[ "${1:-}" = "--cuda" ] && MODE="cuda"
 UI="$(cd "$(dirname "$0")" && pwd)"
 WS="$(dirname "$UI")"
 SRC_REPO="$WS/downloads/GPT-SoVITS-main"
@@ -16,9 +20,16 @@ rm -rf "$OUT"
 mkdir -p "$OUT"
 
 echo "== 复制 Docker 与说明文件 =="
-cp "$UI/docker/Dockerfile" "$UI/docker/docker-compose.yml" "$UI/docker/entrypoint.sh" \
-   "$UI/docker/fetch_assets.py" "$UI/docker/requirements-linux.txt" "$UI/docker/.dockerignore" \
-   "$UI/docker/README.md" "$OUT/"
+cp "$UI/docker/entrypoint.sh" "$UI/docker/fetch_assets.py" \
+   "$UI/docker/requirements-linux.txt" "$UI/docker/.dockerignore" "$UI/docker/README.md" "$OUT/"
+if [ "$MODE" = "cuda" ]; then
+  echo "   （GPU 模式：Dockerfile.cuda + docker-compose.cuda.yml）"
+  cp "$UI/docker/Dockerfile.cuda" "$OUT/Dockerfile"
+  cp "$UI/docker/docker-compose.cuda.yml" "$OUT/docker-compose.yml"
+else
+  cp "$UI/docker/Dockerfile" "$OUT/Dockerfile"
+  cp "$UI/docker/docker-compose.yml" "$OUT/docker-compose.yml"
+fi
 
 echo "== 复制应用与兼容层 =="
 cp -R "$UI/app" "$OUT/app"
@@ -43,6 +54,10 @@ if [ -d "$PKG/参考音频" ]; then
   cp -R "$PKG/参考音频/." "$OUT/references/" 2>/dev/null || true
 fi
 
+if [ "$MODE" = "cuda" ]; then
+  echo "== GPU 模式：跳过 PyTorch CPU wheel 预下载（镜像内直接装 cu124）=="
+  mkdir -p "$OUT/wheels"
+else
 echo "== 预下载 PyTorch CPU wheel（阿里云镜像；容器里用 --find-links 离线安装，避开官方源卡死） =="
 mkdir -p "$OUT/wheels"
 ARCH="$(uname -m)"
@@ -59,6 +74,7 @@ for w in "${WHEELS[@]}"; do
   curl -sSL --retry 3 --retry-delay 2 -o "$OUT/wheels/$name" "$BASE/$w" || echo "  ⚠️ 下载失败，容器构建时会自动回退到在线源"
 done
 ls -lh "$OUT/wheels" 2>/dev/null | tail -3
+fi
 
 echo "== 生成 .env（默认复用本机已有模型/权重，零下载启动） =="
 cat > "$OUT/.env" <<EOF
@@ -81,3 +97,4 @@ echo
 echo "下一步："
 echo "  cd \"$OUT\" && docker compose up -d --build"
 echo "  然后打开 http://localhost:8000"
+[ "$MODE" = "cuda" ] && echo "  （GPU 模式：需要 NVIDIA Container Toolkit；验证 docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi）"

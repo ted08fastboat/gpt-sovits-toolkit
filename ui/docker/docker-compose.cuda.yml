@@ -1,0 +1,44 @@
+# NVIDIA GPU（CUDA）版编排文件
+#   docker compose -f docker-compose.cuda.yml up -d --build
+#
+# 前置条件：
+#   1. 宿主机装好 NVIDIA 驱动
+#   2. 装好 nvidia-container-toolkit 并重启 docker
+#      （Ubuntu/Debian: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html）
+#   3. 验证：docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
+services:
+  voiceui:
+    build:
+      context: .
+      dockerfile: Dockerfile.cuda
+      args:
+        PIP_INDEX: ${PIP_INDEX:-https://pypi.tuna.tsinghua.edu.cn/simple}
+        TORCH_INDEX: ${TORCH_INDEX:-https://download.pytorch.org/whl/cu124}
+    image: gptsovits-voiceui:cuda
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      PORT: "8000"
+      AUTO_FETCH: "${AUTO_FETCH:-1}"
+      HF_ENDPOINT: "${HF_ENDPOINT:-https://hf-mirror.com}"
+      PRELOAD: "1"
+      version: "v2Pro"
+      # 指定用哪张卡（多卡时）
+      # CUDA_VISIBLE_DEVICES: "0"
+    volumes:
+      - ${PRETRAINED_DIR:-./models/pretrained_models}:/repo/GPT_SoVITS/pretrained_models
+      - ${G2PW_DIR:-./models/G2PWModel}:/repo/GPT_SoVITS/text/G2PWModel
+      - ${NLTK_DIR:-./models/nltk_data}:/repo/nltk_data
+      - ${WEIGHTS_DIR:-./weights}:/data/weights
+      - ./references:/data/references
+      - ./outputs:/data/outputs
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # 新版 Compose（v2.30+）也可以直接用一行：
+    # gpus: all

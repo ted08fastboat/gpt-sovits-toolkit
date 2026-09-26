@@ -97,6 +97,26 @@ gpt_path=/path/a.ckpt sovits_path=/path/b.pth version=v2Pro bash scripts/say.sh 
 macOS 27 / Apple Silicon(arm64) · Python 3.11.14 · torch 2.6.0 · torchaudio 2.6.0 ·
 numpy 1.26.4 · gradio 4.44.1 · transformers 4.57.6 · starlette 0.41.3（**必须钉住**，新版与 gradio 4.44 不兼容）
 
+## 推理设备与性能（实测）
+
+| 设备 | 热态合成 6.2 秒音频 | RTF（耗时/音频长） | 说明 |
+|---|---|---|---|
+| CPU（Apple M2，10 核） | 4.5 ~ 4.7 秒 | **0.75** | 默认，比实时快 |
+| Apple MPS（Metal） | 6.3 ~ 6.5 秒 | 1.04 | 能跑通、输出正确，但比 CPU 慢约 40% |
+| NVIDIA CUDA | — | 通常 0.1 ~ 0.3 | 官方主推路径，快 3 ~ 10 倍 |
+
+- 上游 `GPT_SoVITS/inference_webui.py` 只认 CUDA（`device = "cuda" if torch.cuda.is_available() else "cpu"`），
+  Apple Silicon 上装了 MPS 也只会走 CPU。想试 Metal 需要打补丁：
+
+  ```bash
+  python scripts/patch_device.py ~/GPT-SoVITS              # 加 DEVICE 环境变量支持（自动备份）
+  DEVICE=mps PYTORCH_ENABLE_MPS_FALLBACK=1 ~/GPT-SoVITS/start-webui.sh
+  # NVIDIA 机器同理：DEVICE=cuda
+  ```
+
+- 复现上面的基准：`DEVICE=cpu python scripts/bench_device.py`（同一句台词连跑 3 次取中位）
+- macOS 上的 Docker 容器**拿不到 GPU**（无 Metal 直通）；NVIDIA 用户用 `ui/make_build_dir.sh --cuda` 构建 GPU 版镜像
+
 ## 几个踩过的坑（脚本里已处理）
 
 1. `starlette >= 1.0` 改了 `TemplateResponse` 签名 → gradio 4.44 的 `GET /` 直接 500，必须降到 `0.41.3`

@@ -40,23 +40,33 @@ docker compose down             # 停止并删除容器（数据都在挂载目�
 
 `.env` 里把三个 `*_DIR` 指向本机 `~/GPT-SoVITS/...`，就能**零下载**直接起（推荐，模型已在本地）。
 
-## 四、GPU（可选）
+## 四、GPU 加速（NVIDIA）
 
-镜像默认是 **CPU 版 torch**（体积小、任何机器可跑）。要用 NVIDIA 显卡：
+**结论先说**：真收益只在 NVIDIA CUDA 上；Apple GPU 别折腾。同一句台词、同一组权重实测（Apple M2，10 核）：
 
-1. 装好 NVIDIA 驱动 + [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
-2. 把 `Dockerfile` 里装 torch 那行换成 CUDA 版：
-   ```dockerfile
-   RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cu121 torch==2.6.0 torchaudio==2.6.0
-   ```
-3. 打开 `docker-compose.yml` 末尾 `deploy:` 那几行注释
-4. `docker compose up -d --build`
+| 设备 | 热态合成 6.2 秒音频 | RTF（耗时/音频长） |
+|---|---|---|
+| CPU | 4.5 ~ 4.7 秒 | 0.75 |
+| Apple MPS（Metal） | 6.3 ~ 6.5 秒 | 1.04 |
 
-## 四点五、关于依赖下载（国内网络）
+MPS 能跑通、输出与 CPU 等价（音色 MFCC 距离 21.8，属同一声音），但**慢约 40%** —— 自回归解码的小张量 + 部分算子回退到 CPU，属固有开销。
+NVIDIA 显卡则完全不同，通常 RTF 0.1~0.3（快 3~10 倍）。
 
-`make_build_dir.sh` 会在宿主机先把 PyTorch CPU wheel 下到 `build/wheels/`（走阿里云镜像，约 93MB），
-容器构建时用 `--find-links` 离线安装——因为 `download.pytorch.org` 在国内经常卡死。
-`wheels/` 里架构不匹配（比如拿到 amd64 机器上构建）时，pip 会自动跳过并回退到在线源，不会构建失败。
+### 用法
+
+```bash
+./make_build_dir.sh --cuda          # 组装 GPU 版构建目录
+cd build && docker compose up -d --build
+```
+
+- 用的是 `Dockerfile.cuda`（torch cu124，自带 CUDA 运行时）+ `docker-compose.cuda.yml`（已配好 `deploy.resources.reservations.devices`）
+- 前置：NVIDIA 驱动 + [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+  验证：`docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi`
+- 检测到显卡时上游会自动开启 `is_half`（fp16 推理），无需额外配置；多卡可加 `CUDA_VISIBLE_DEVICES: "0"`
+- 国内网络若嫌 `download.pytorch.org` 慢，把 `TORCH_INDEX` 换成 `https://mirrors.aliyun.com/pytorch-wheels/cu124`
+
+> Apple Silicon 的 Docker 容器**拿不到 GPU**（Docker Desktop 跑在 Linux 虚拟机里，没有 Metal 直通）。
+> Mac 上想试 Metal 只能用原生环境，见仓库根 README 的「推理设备与性能」。
 
 ## 五、UI 里能做什么
 

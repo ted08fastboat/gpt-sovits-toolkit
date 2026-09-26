@@ -1,0 +1,58 @@
+# 声音工坊 · GPT-SoVITS 语音克隆 UI（NVIDIA GPU / CUDA 版）
+#
+# 与 Dockerfile 的区别：只换了 torch 的索引（cu124，自带 CUDA 运行时），
+# 不使用本地预下载的 +cpu wheel。其余完全一致。
+#
+# 构建与运行：
+#   docker build -f Dockerfile.cuda -t gptsovits-voiceui:cuda .
+#   docker compose -f docker-compose.cuda.yml up -d        # 需要 NVIDIA Container Toolkit
+FROM python:3.11-slim
+
+ARG PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
+# 官方 CUDA 轮子索引（国内若慢可换 https://mirrors.aliyun.com/pytorch-wheels/cu124）
+ARG TORCH_INDEX=https://download.pytorch.org/whl/cu124
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    HF_ENDPOINT=https://hf-mirror.com \
+    TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 \
+    REPO_ROOT=/repo \
+    REF_DIR=/data/references \
+    OUT_DIR=/data/outputs \
+    NLTK_DATA=/repo/nltk_data \
+    PORT=8000 \
+    PRELOAD=1 \
+    version=v2Pro
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      ffmpeg libsndfile1 libgomp1 ca-certificates curl \
+ && rm -rf /var/lib/apt/lists/*
+
+# CUDA 版 torch（体积约 2.5GB，含 nvidia-* 运行时依赖；检测到显卡时 is_half 会自动开启）
+RUN pip install --no-cache-dir --index-url ${TORCH_INDEX} torch==2.6.0 torchaudio==2.6.0 \
+ || pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cu118 torch==2.6.0 torchaudio==2.6.0
+
+COPY requirements-linux.txt /tmp/requirements-linux.txt
+RUN pip install --no-cache-dir -i ${PIP_INDEX} -r /tmp/requirements-linux.txt
+
+RUN pip install --no-cache-dir -i ${PIP_INDEX} opencc || pip install --no-cache-dir -i ${PIP_INDEX} opencc-python-reimplemented
+RUN pip install --no-cache-dir -i ${PIP_INDEX} imageio-ffmpeg
+RUN pip install --no-cache-dir -i ${PIP_INDEX} funasr modelscope || echo "（ASR 依赖安装失败，不影响合成）"
+
+COPY GPT-SoVITS /repo
+COPY app /app/voiceui
+COPY fetch_assets.py entrypoint.sh /app/voiceui/
+COPY jieba_fast /repo/jieba_fast
+RUN chmod +x /app/voiceui/entrypoint.sh \
+ && mkdir -p /data/weights /data/references /data/outputs \
+            /repo/GPT_SoVITS/pretrained_models /repo/GPT_SoVITS/text/G2PWModel /repo/nltk_data
+
+WORKDIR /app/voiceui
+EXPOSE 8000
+VOLUME ["/data"]
+
+HEALTHCHECK --start-period=120s --interval=30s --timeout=5s --retries=3 \
+  CMD curl -fs http://127.0.0.1:${PORT}/api/state || exit 1
+
+ENTRYPOINT ["/app/voiceui/entrypoint.sh"]
