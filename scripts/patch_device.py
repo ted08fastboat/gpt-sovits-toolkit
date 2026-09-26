@@ -65,7 +65,7 @@ def main():
         return 0
 
     s = open(path, encoding="utf-8").read()
-    if "patch_device.py: 支持 DEVICE 环境变量" in s:
+    if "支持 DEVICE 环境变量（cpu / cuda / mps）" in s:
         print("ℹ️  已经打过补丁，无需重复")
         return 0
     if OLD not in s:

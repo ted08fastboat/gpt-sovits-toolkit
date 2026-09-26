@@ -7,8 +7,10 @@ DEST="${DEST:-$HOME/GPT-SoVITS}"
 PKG="$HOME/Desktop/GPT-SoVITS一键克隆"
 
 export REPO_ROOT="$DEST"
-export REF_DIR="${REF_DIR:-$PKG/参考音频}"
-export OUT_DIR="${OUT_DIR:-$PKG/输出音频}"
+# 默认用安装目录下的参考音/输出（不要用 ~/Desktop、~/Downloads、~/Documents：
+# 这些是 macOS 隐私保护目录，后台进程可能读不到）
+export REF_DIR="${REF_DIR:-$DEST/参考音频}"
+export OUT_DIR="${OUT_DIR:-$DEST/输出音频}"
 export PATH="$DEST/venv/bin:$PATH"
 export PYTHONPATH="$DEST:$DEST/GPT_SoVITS"
 export HF_ENDPOINT="https://hf-mirror.com"

@@ -49,10 +49,15 @@ echo "== 创建挂载目录 =="
 mkdir -p "$OUT/models/pretrained_models" "$OUT/models/G2PWModel" "$OUT/models/nltk_data" \
          "$OUT/weights" "$OUT/references" "$OUT/outputs"
 
-echo "== 放一份现成参考音色（视频人声 + 备用） =="
-if [ -d "$PKG/参考音频" ]; then
-  cp -R "$PKG/参考音频/." "$OUT/references/" 2>/dev/null || true
-fi
+echo "== 放一份现成参考音色 =="
+# 优先用安装目录（~/GPT-SoVITS/参考音频）；桌面/下载目录在 macOS 上受隐私保护，后台进程可能读不到
+for src in "$HOME/GPT-SoVITS/参考音频" "$PKG/参考音频"; do
+  if [ -d "$src" ] && [ -n "$(ls -A "$src" 2>/dev/null)" ]; then
+    cp -R "$src/." "$OUT/references/" 2>/dev/null && echo "   来自 $src" && break
+  fi
+done
+n=$(ls -1 "$OUT/references" 2>/dev/null | wc -l | tr -d ' ')
+[ "$n" = "0" ] && echo "   ⚠️ 没找到参考音色，容器启动后可在界面里上传"
 
 if [ "$MODE" = "cuda" ]; then
   echo "== GPU 模式：跳过 PyTorch CPU wheel 预下载（镜像内直接装 cu124）=="

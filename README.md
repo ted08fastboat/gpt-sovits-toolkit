@@ -105,14 +105,21 @@ numpy 1.26.4 · gradio 4.44.1 · transformers 4.57.6 · starlette 0.41.3（**必
 | Apple MPS（Metal） | 6.3 ~ 6.5 秒 | 1.04 | 能跑通、输出正确，但比 CPU 慢约 40% |
 | NVIDIA CUDA | — | 通常 0.1 ~ 0.3 | 官方主推路径，快 3 ~ 10 倍 |
 
+- **网页界面里可以直接切换设备**：左栏「④ 运行设备」下拉会列出这台机器可用的设备
+  （不可用的会灰掉并说明原因），点「切换设备」即可，切换时会重新把模型加载到新设备，
+  实测切换耗时 2~3 秒（权重已在系统缓存里）。当前设备显示在右上角状态条。
 - 上游 `GPT_SoVITS/inference_webui.py` 只认 CUDA（`device = "cuda" if torch.cuda.is_available() else "cpu"`），
-  Apple Silicon 上装了 MPS 也只会走 CPU。想试 Metal 需要打补丁：
+  Apple Silicon 上装了 MPS 也只会走 CPU。本项目的 App 会在导入前**自动给上游打上 DEVICE 补丁**
+  （原文件备份为 `inference_webui.py.bak-device`），所以原生 / Docker / Windows 三种交付都不用人工改代码。
+  命令行方式也可以：
 
   ```bash
-  python scripts/patch_device.py ~/GPT-SoVITS              # 加 DEVICE 环境变量支持（自动备份）
+  python scripts/patch_device.py ~/GPT-SoVITS              # 手动打补丁（幂等，可 --revert）
   DEVICE=mps PYTORCH_ENABLE_MPS_FALLBACK=1 ~/GPT-SoVITS/start-webui.sh
   # NVIDIA 机器同理：DEVICE=cuda
   ```
+
+  > 官方那个 Gradio WebUI（9874 端口）不支持运行时切换，只能用启动时的 `DEVICE` 环境变量。
 
 - 复现上面的基准：`DEVICE=cpu python scripts/bench_device.py`（同一句台词连跑 3 次取中位）
 - macOS 上的 Docker 容器**拿不到 GPU**（无 Metal 直通）；NVIDIA 用户用 `ui/make_build_dir.sh --cuda` 构建 GPU 版镜像

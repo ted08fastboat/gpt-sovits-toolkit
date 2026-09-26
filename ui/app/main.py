@@ -143,6 +143,17 @@ def worker():
         job = jobs[job_id]
         try:
             job["status"] = "running"
+            # ---- 设备切换任务 ----
+            if payload.get("kind") == "device":
+                dev = payload.get("device")
+                job["log"].append("正在切换到 %s …（会重新加载模型，请稍候）" % dev)
+                t0 = time.time()
+                got = engine.set_device(dev, progress=lambda n, m: job["log"].append(m or "…"))
+                job["device"] = got
+                job["log"].append("已切换到 %s，用时 %.1f 秒" % (got, time.time() - t0))
+                job["status"] = "done"
+                continue
+
             job["log"].append("开始合成…")
             ref_wav = os.path.join(REF_DIR, payload["ref"])
             ref_txt = os.path.splitext(ref_wav)[0] + ".txt"
@@ -212,6 +223,9 @@ def api_state():
         "sovits": s,
         "variants": ["默认", "更稳", "更活"],
         "loaded": engine.loaded,
+        "devices": engine.available_devices(),
+        "device": engine.current_device(),
+        "patch_state": engine.patch_state,
         "log": engine.log[-8:],
     }
 
@@ -278,6 +292,22 @@ def api_ref_delete(payload: dict):
         if os.path.exists(p):
             os.remove(p)
     return {"ok": True}
+
+
+@app.post("/api/device")
+def api_device(payload: dict):
+    """切换推理设备（cpu / cuda / mps）。走任务队列，避免与合成并发。"""
+    dev = (payload.get("device") or "").strip().lower()
+    ids = {d["id"]: d for d in engine.available_devices()}
+    if dev not in ids:
+        raise HTTPException(400, "未知设备：%s" % dev)
+    if not ids[dev]["available"]:
+        raise HTTPException(400, "%s 当前不可用（这台机器没有对应的 GPU 或未装驱动）" % ids[dev]["label"])
+    job_id = uuid.uuid4().hex[:12]
+    jobs[job_id] = {"id": job_id, "kind": "device", "status": "queued", "files": [],
+                    "log": [], "error": None, "device": dev}
+    job_queue.put((job_id, {"kind": "device", "device": dev}))
+    return {"job_id": job_id, "device": dev}
 
 
 @app.post("/api/synth")

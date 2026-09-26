@@ -114,6 +114,17 @@
     </div>
 
     <div class="card">
+      <h2>④ 运行设备</h2>
+      <select id="devSel"></select>
+      <div class="muted" id="devNote" style="margin-top:6px"></div>
+      <div class="row" style="margin-top:8px">
+        <button id="devBtn" onclick="switchDevice()">切换设备</button>
+        <span class="muted" id="devCur"></span>
+      </div>
+      <div class="muted" id="devMsg" style="margin-top:6px"></div>
+    </div>
+
+    <div class="card">
       <h2>路径</h2>
       <div class="muted" id="paths"></div>
     </div>
@@ -123,7 +134,7 @@
   <div>
     <div class="card">
       <h2>台词</h2>
-      <textarea id="text" placeholder="在这里输入要合成的内容，例如：&#10;这是一句测试台词，用来验证合成流程。"></textarea>
+      <textarea id="text" placeholder="在这里输入要合成的内容，例如：&#10;老牧师的许英博不要玩原神了"></textarea>
       <div class="row" style="margin-top:10px">
         <button class="primary" id="goBtn" onclick="synthesize()">开始合成</button>
         <button onclick="document.getElementById('text').value=''">清空</button>
@@ -174,11 +185,24 @@ async function loadState(){
   const v = document.getElementById('variantSel');
   if(!v.options.length) v.innerHTML = STATE.variants.map(x=>`<option>${x}</option>`).join('');
 
+  // 运行设备
+  if(STATE.devices){
+    const d = document.getElementById('devSel');
+    d.innerHTML = STATE.devices.map(x =>
+      `<option value="${x.id}" ${x.id===STATE.device?'selected':''} ${x.available?'':'disabled'}>` +
+      `${esc(x.label)}${x.available?(x.name?` · ${esc(x.name)}`:''):'（不可用）'}</option>`).join('');
+    d.onchange = showDevNote;
+    showDevNote();
+    const cur = (STATE.devices.find(x=>x.id===STATE.device)||{}).label || STATE.device || '?';
+    document.getElementById('devCur').textContent = '当前：' + cur;
+  }
+
   document.getElementById('paths').innerHTML =
     `仓库：${esc(STATE.repo_root)}<br>参考音色：${esc(STATE.ref_dir)}<br>输出：${esc(STATE.out_dir)}`;
   document.getElementById('enginelog').textContent = (STATE.log||[]).join('\n') || '（暂无）';
   const pill = document.getElementById('engine');
-  pill.textContent = STATE.loaded ? '模型已加载 ✓' : '模型加载中…';
+  const devLabel = (STATE.devices||[]).find(x=>x.id===STATE.device);
+  pill.textContent = (STATE.loaded ? '模型已加载 ✓' : '模型加载中…') + (devLabel ? ' · ' + devLabel.label : '');
   pill.className = 'pill ' + (STATE.loaded ? 'ok' : 'warn');
   loadOutputs();
 }
@@ -223,6 +247,44 @@ async function uploadRef(){
     if(!r.ok){ alert('上传失败：'+(await r.json()).detail); }
     else { await loadState(); alert('上传成功，已设为当前音色'); }
   } finally { btn.disabled=false; btn.textContent='上传并设为当前音色'; }
+}
+
+function showDevNote(){
+  const id = document.getElementById('devSel').value;
+  const item = (STATE.devices||[]).find(x=>x.id===id) || {};
+  document.getElementById('devNote').textContent = item.note || '';
+  document.getElementById('devBtn').disabled = !item.available || id===STATE.device;
+}
+
+async function switchDevice(){
+  const id = document.getElementById('devSel').value;
+  const item = (STATE.devices||[]).find(x=>x.id===id) || {};
+  if(!item.available) return;
+  if(!confirm(`切换到「${item.label}」？\n\n会重新加载模型到新设备，CPU 上约 10~30 秒，GPU 可能更久。`)) return;
+  const btn = document.getElementById('devBtn');
+  btn.disabled = true; btn.textContent = '切换中…';
+  document.getElementById('devMsg').textContent = '正在切换，请稍候…';
+  try{
+    const r = await fetch('/api/device',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({device:id})});
+    if(!r.ok){ document.getElementById('devMsg').textContent = '失败：' + (await r.json()).detail; return; }
+    const {job_id} = await r.json();
+    const poll = setInterval(async ()=>{
+      const j = await (await fetch('/api/job/'+job_id)).json();
+      document.getElementById('devMsg').textContent = (j.log||[]).slice(-1)[0] || '切换中…';
+      if(j.status==='done' || j.status==='error'){
+        clearInterval(poll);
+        document.getElementById('devMsg').textContent =
+          j.status==='done' ? `已切换到 ${j.device}` : ('切换失败：' + j.error);
+        await loadState();
+        const b = document.getElementById('devBtn'); b.textContent = '切换设备'; showDevNote();
+      }
+    }, 1200);
+  } catch(e){
+    document.getElementById('devMsg').textContent = '请求出错：' + e;
+  } finally{
+    const b = document.getElementById('devBtn'); if(b.textContent==='切换中…') b.textContent='切换设备';
+  }
 }
 
 async function synthesize(){
