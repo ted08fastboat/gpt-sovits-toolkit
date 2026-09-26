@@ -56,14 +56,29 @@ for f, d in (("model.ckpt", os.path.join(ENV, "GPT_weights_v2Pro")),
 # 4. 参考音频（默认男声 Rocko，附备用）+ 台词示例
 REF = os.path.join(PKG, "参考音频")
 os.makedirs(os.path.join(REF, "备用"), exist_ok=True)
-V = os.path.join(WS, "test", "voices")
-shutil.copy2(os.path.join(V, "Rocko_中文_中国大陆.wav"), os.path.join(REF, "ref.wav"))
+# 参考音色优先取安装目录（清理工作区后 test/ 可能已删除）
+V = os.path.join(os.path.expanduser("~"), "GPT-SoVITS", "参考音频", "备用")
+if not os.path.isdir(V):
+    V = os.path.join(WS, "test", "voices")
+VOICE_MAP = {"男声-Rocko.wav": "Rocko_中文_中国大陆.wav",
+             "男声-Reed.wav": "Reed_中文_中国大陆.wav",
+             "女声-婷婷.wav": "Tingting_中文_中国大陆.wav"}
+src_rocko = os.path.join(V, VOICE_MAP["男声-Rocko.wav"])
+if not os.path.exists(src_rocko):
+    src_rocko = os.path.join(V, "男声-Rocko.wav")
+shutil.copy2(src_rocko, os.path.join(REF, "ref.wav"))
 with open(os.path.join(REF, "ref.txt"), "w", encoding="utf-8") as f:
     f.write("各位听众朋友大家好，欢迎收听今天的科技新闻节目。")
-shutil.copy2(os.path.join(V, "Tingting_中文_中国大陆.wav"), os.path.join(REF, "备用", "女声-婷婷.wav"))
+_src = os.path.join(V, "Tingting_中文_中国大陆.wav")
+if not os.path.exists(_src):
+    _src = os.path.join(V, "女声-婷婷.wav")
+shutil.copy2(_src, os.path.join(REF, "备用", "女声-婷婷.wav"))
 with open(os.path.join(REF, "备用", "女声-婷婷.txt"), "w", encoding="utf-8") as f:
     f.write("各位听众朋友大家好，欢迎收听今天的科技新闻节目。")
-shutil.copy2(os.path.join(V, "Reed_中文_中国大陆.wav"), os.path.join(REF, "备用", "男声-Reed.wav"))
+_src = os.path.join(V, "Reed_中文_中国大陆.wav")
+if not os.path.exists(_src):
+    _src = os.path.join(V, "男声-Reed.wav")
+shutil.copy2(_src, os.path.join(REF, "备用", "男声-Reed.wav"))
 with open(os.path.join(REF, "备用", "男声-Reed.txt"), "w", encoding="utf-8") as f:
     f.write("各位听众朋友大家好，欢迎收听今天的科技新闻节目。")
 with open(os.path.join(REF, "说明.txt"), "w", encoding="utf-8") as f:

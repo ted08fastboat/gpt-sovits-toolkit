@@ -13,6 +13,19 @@ SRC_REPO="$WS/downloads/GPT-SoVITS-main"
 PKG="$HOME/Desktop/GPT-SoVITS一键克隆"
 OUT="$UI/build"
 
+# 源码优先用本地暂存副本；没有就从 GitHub 代理下载（清理工作区后依然可用）
+if [ ! -d "$SRC_REPO" ]; then
+  echo "本地没有源码副本，从 GitHub 代理下载…"
+  STAGE="$UI/.src"
+  mkdir -p "$STAGE"
+  if [ ! -d "$STAGE/GPT-SoVITS-main" ]; then
+    curl -sSL --retry 3 -m 300 -o "$STAGE/src.zip" \
+      "https://gh-proxy.com/https://github.com/RVC-Boss/GPT-SoVITS/archive/refs/heads/main.zip" \
+      || { echo "❌ 源码下载失败，请手动解压 GPT-SoVITS 到 $SRC_REPO"; exit 1; }
+    unzip -q -o "$STAGE/src.zip" -d "$STAGE" || { echo "❌ 解压失败"; exit 1; }
+  fi
+  SRC_REPO="$STAGE/GPT-SoVITS-main"
+fi
 [ -d "$SRC_REPO" ] || { echo "❌ 找不到源码目录：$SRC_REPO"; exit 1; }
 
 echo "== 清理 $OUT =="
