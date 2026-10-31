@@ -134,6 +134,18 @@ numpy 1.26.4 · gradio 4.44.1 · transformers 4.57.6 · starlette 0.41.3（**必
 6. `download.pytorch.org` 国内易卡死 → 改用阿里云 pytorch-wheels 镜像 + 本地 wheel 离线安装
 7. 硬链接（`cp -Rl`）省空间时，某些安全策略会拒绝打开多重链接文件 → 装完记得真实复制关键目录
 
+## 网络不通时怎么推送
+
+国内访问 `github.com` 的 git 端口经常超时（同一时刻 `api.github.com` 往往仍可用）。备用脚本：
+
+```bash
+bash scripts/push_with_retry.sh     # 带重试的 git push（会核对本地与远端 HEAD）
+
+# git 端口彻底不通时，用 Git Data API 直接提交（内容与本地一致，一个提交搞定）
+python scripts/api_push.py --repo <owner>/<name> --token <gh auth token 的值> \
+       --message "提交说明"
+```
+
 ## 注意
 
 - **音色授权**：训练/收集的音色权重可能包含他人声音（真人、配音演员或角色）。
