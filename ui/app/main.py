@@ -35,7 +35,7 @@ from synth import Engine  # noqa: E402
 REPO_ROOT = os.path.abspath(os.environ.get("REPO_ROOT", "/repo"))
 REF_DIR = os.path.abspath(os.environ.get("REF_DIR", os.path.join(HERE, "references")))
 OUT_DIR = os.path.abspath(os.environ.get("OUT_DIR", os.path.join(HERE, "outputs")))
-STATE_FILE = os.path.join(HERE, "ui_state.json")
+STATE_FILE = os.environ.get("STATE_FILE") or os.path.join(HERE, "ui_state.json")
 
 os.makedirs(REF_DIR, exist_ok=True)
 os.makedirs(OUT_DIR, exist_ok=True)
