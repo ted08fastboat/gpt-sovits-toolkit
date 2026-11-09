@@ -27,7 +27,11 @@ win/       Windows 轻量安装包（脚本 + 权重，依赖联网下载）
   └─ jieba_fast/                         免编译兼容层（Windows 装不上 jieba_fast）
 
 ui/        声音工坊网页界面 + Docker 封装
-  ├─ app/                                FastAPI 后端 + 单文件前端（无 CDN 依赖）
+  ├─ app/main.py + synth.py              FastAPI 后端 + 合成引擎（设备切换、模型常驻）
+  ├─ app/compat_api.py                   对外语音接口：OpenAI TTS 兼容 + GPT-SoVITS api_v2 兼容
+  ├─ app/ui_api.py                       模型管理 / 音色库 / 合成日志本的接口
+  ├─ app/static/index.html               单文件前端（无 CDN 依赖）
+  ├─ presets/                            内置音色清单 + 生成脚本（音频不进仓库）
   ├─ run_local.sh / 启动声音工坊.command   macOS/Linux 本机启动
   ├─ docker/                             Dockerfile / compose / entrypoint / 模型下载器
   ├─ make_build_dir.sh                   组装 Docker 构建目录（含 wheel 预下载）
@@ -62,8 +66,55 @@ cd build && docker compose up -d --build     # 打开 http://localhost:8000
 
 ### 声音工坊网页界面
 
-`http://127.0.0.1:8000`：输入台词合成、切换/上传参考音色、编辑参考文字、试听/下载/删除输出。
-模型常驻内存，首次加载约 1 分钟，之后每次合成 5~20 秒。
+`http://127.0.0.1:8000`，四个页签：
+
+| 页签 | 能做什么 |
+|---|---|
+| 合成台 | 选音色（可试听）→ 输入台词 → 合成 → 播放 / 下载；风格、语速、长句切分、运行设备都在同一屏 |
+| 音色库 | 管理已装音色（试听 / 改参考文本 / 设为默认 / 删除）；一键安装内置音色；粘贴直链安装；上传本地文件 |
+| 模型 | 底模预设切换（v2 / v2Pro / v2ProPlus / v3 / v4）、下载（带进度）、卸载（删文件释放空间）、微调权重切换与卸载、磁盘余量 |
+| 日志本 | 每次合成的记录：时间 / 文本全文 / 音色 / 时长 / 来源（网页或接口），可搜索、播放、导出 jsonl |
+
+模型常驻内存，首次加载约 1 分钟，之后每次合成 5~20 秒（CPU，短句）。
+
+v3 / v4 底模可以直接在「模型」页下载（来自 hf-mirror），但它们要多跑几十步采样，
+**CPU 上一句话要一两分钟**，没有 GPU 就别切过去。
+
+### 给 agent / AstrBot 用：对外语音接口
+
+容器同时暴露两组业界通行协议，任何能发 HTTP 的程序都能调：
+
+```bash
+# ① OpenAI TTS 兼容（AstrBot、LangChain、各类 agent 框架直接吃）
+curl -X POST http://127.0.0.1:8000/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"model":"tts-1","input":"你好","voice":"晓晓","response_format":"mp3"}' \
+  -o out.mp3
+
+# ② GPT-SoVITS api_v2 兼容（官方插件、老脚本用这个）
+curl -X POST http://127.0.0.1:8000/tts \
+  -H "Content-Type: application/json" \
+  -d '{"text":"你好","text_lang":"zh","ref_audio_path":"xxx.wav","prompt_lang":"zh"}' \
+  -o out.wav
+```
+
+其它接口：`/health`（就绪状态与音色）、`/v1/voices`、`/v1/models`、
+`/api/v1/say`（返回 base64，方便不会处理二进制的调用方）、`/docs`（自动生成的接口文档）。
+
+鉴权默认关闭；要开就在 `.env` 里设 `AGENT_API_KEY`，调用方带 `Authorization: Bearer <key>`。
+
+### AstrBot 插件（可选）
+
+`integrations/astrbot-plugin-local-tts/` 是一个 AstrBot 插件，让模型**按需**发语音：
+
+- LLM 工具 `say_aloud(text, voice?, speed?)`：模型自己判断该不该念出来
+- `/说 文字`、`/音色` 两个指令
+
+装法：整个目录拷到 AstrBot 的 `data/plugins/astrbot_plugin_local_tts/`，重启 AstrBot。
+默认连 `http://127.0.0.1:8001`（AstrBot 和本服务同机时直接走回环），配置项见该目录 README。
+
+> 注意 AstrBot 里配 OpenAI TTS 提供商时，「API Base URL」填 `http://IP:8001/v1`，
+> 而「代理地址」是 HTTP 代理，**留空**——填成服务地址会把请求打死。
 
 ## 模型与权重（不在仓库内）
 

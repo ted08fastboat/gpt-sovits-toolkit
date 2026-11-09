@@ -20,6 +20,8 @@ import time
 import numpy as np
 import soundfile as sf
 
+V3V4 = {"v3", "v4"}   # 这两代底模需要额外的采样步数参数
+
 VARIANTS = {
     "默认": (20, 0.6, 0.6, 1.0),
     "更稳": (15, 0.9, 0.7, 1.0),
@@ -105,6 +107,17 @@ class Engine:
                     pass
             out.append(item)
         return out
+
+    @property
+    def version(self):
+        """当前实际加载的模型版本（v2 / v2Pro / v2ProPlus / v3 / v4）。
+
+        change_sovits_weights 会把 model_version 写回模块全局，所以这里读模块状态。
+        """
+        mod = (self._mods or {}).get("module") or sys.modules.get("GPT_SoVITS.inference_webui")
+        if mod is None:
+            return None
+        return getattr(mod, "model_version", None) or getattr(mod, "version", None)
 
     def current_device(self):
         if self._mods:
@@ -209,7 +222,7 @@ class Engine:
 
     # ---------- 对外：合成 ----------
     def synth(self, text, ref_wav, ref_text, gpt, sovits, variant="默认", speed=None, cut="按标点符号切",
-              progress=None):
+              progress=None, sample_steps=None):
         """返回 (numpy float 音频, 采样率)。progress(done, msg) 可为 None。"""
         m = self._import()
         self.ensure_weights(gpt, sovits)
@@ -217,7 +230,7 @@ class Engine:
         if speed:
             sp = float(speed)
         t0 = time.time()
-        gen = m["get_tts_wav"](
+        kwargs = dict(
             ref_wav_path=ref_wav,
             prompt_text=ref_text or "",
             prompt_language=m["i18n"]("中文"),
@@ -229,6 +242,10 @@ class Engine:
             temperature=temp,
             speed=sp,
         )
+        # v3 / v4 才有采样步数概念（v3 默认 32，v4 默认 8）；其它版本传了也会被忽略
+        if self.version in V3V4 or sample_steps:
+            kwargs["sample_steps"] = int(sample_steps or (32 if self.version == "v3" else 8))
+        gen = m["get_tts_wav"](**kwargs)
         chunks = []
         for i, item in enumerate(gen):
             chunks.append(item)

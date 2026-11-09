@@ -181,6 +181,12 @@ def worker():
             path = os.path.join(OUT_DIR, fname)
             engine.save_wav(audio, sr, path)
             job["files"] = [fname]
+            try:  # 写进合成日志本
+                from ui_api import record as _record
+
+                _record(payload["text"], os.path.basename(ref_wav), len(audio) / sr, fname, "网页")
+            except Exception:  # noqa: BLE001
+                pass
             job["log"].append("完成，用时 %.1f 秒，音频 %.2f 秒" % (time.time() - t0, len(audio) / sr))
             job["status"] = "done"
         except Exception as exc:  # noqa: BLE001
@@ -193,8 +199,24 @@ def worker():
 
 
 threading.Thread(target=worker, daemon=True).start()
+def _boot():
+    """先按上次选择的权重恢复模型，再预热，避免重启后界面显示的版本与实际不一致。"""
+    try:
+        _st = load_state()
+        if _st.get("gpt") and _st.get("sovits"):
+            engine.ensure_weights(os.path.join(REPO_ROOT, _st["gpt"]),
+                                  os.path.join(REPO_ROOT, _st["sovits"]))
+            print("[boot] 已恢复上次的权重：%s + %s" % (_st["gpt"], _st["sovits"]))
+    except Exception as _exc:  # noqa: BLE001
+        print("[boot] 恢复上次权重失败，改用默认权重:", _exc)
+    try:
+        engine.preload()
+    except Exception as _exc:  # noqa: BLE001
+        print("[boot] 预热失败:", _exc)
+
+
 if os.environ.get("PRELOAD", "1") == "1":
-    threading.Thread(target=engine.preload, daemon=True).start()
+    threading.Thread(target=_boot, daemon=True).start()
 
 
 # ------------------------------------------------------------------ 接口
@@ -359,6 +381,31 @@ def media_out(name: str):
     if not os.path.exists(p):
         raise HTTPException(404, "不存在")
     return FileResponse(p, media_type="audio/wav")
+
+
+# ---------------------------------------------------------------- Agent 接入层
+# 给容器补上 OpenAI /v1/audio/speech 与 GPT-SoVITS /tts 兼容接口，
+# 供 AstrBot、agent 框架、脚本直接调用（实现见 compat_api.py）。
+try:
+    from compat_api import install_compat
+
+    install_compat(app, engine=engine, ref_dir=REF_DIR, out_dir=OUT_DIR, state_loader=load_state,
+                    weights_getter=lambda: default_weights(*list_weights()))
+    print("[compat] Agent 接入层已挂载：POST /v1/audio/speech, POST /tts")
+except Exception as _exc:  # noqa: BLE001
+    print("[compat] 接入层加载失败（不影响 UI）:", _exc)
+
+
+# ---------------------------------------------------------------- 模型 / 音色 / 日志本
+# 模型清单与切换、音色库、合成日志。实现见 ui_api.py。
+try:
+    from ui_api import install_ui_api
+
+    install_ui_api(app, engine=engine, ref_dir=REF_DIR, out_dir=OUT_DIR,
+                   state_loader=load_state, state_saver=save_state)
+    print("[ui] 扩展接口已挂载：/api/models /api/voices/presets /api/history")
+except Exception as _exc:  # noqa: BLE001
+    print("[ui] 扩展接口加载失败（不影响合成）:", _exc)
 
 
 if __name__ == "__main__":

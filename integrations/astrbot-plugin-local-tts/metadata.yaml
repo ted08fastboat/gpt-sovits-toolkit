@@ -1,0 +1,10 @@
+name: "astrbot_plugin_local_tts"
+display_name: "本地语音（GPT-SoVITS）"
+author: "zhengjiezhou"
+version: "v1.0.0"
+desc: "把文字交给本机 8001 端口的 GPT-SoVITS 服务合成语音并发出去。提供 LLM 工具 say_aloud，让模型在需要时自己决定发语音；另有 /说、/音色 指令。"
+astrbot_version: ">=4.24.0"
+tags:
+  - 语音
+  - TTS
+  - GPT-SoVITS

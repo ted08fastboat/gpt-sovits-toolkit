@@ -15,6 +15,15 @@ services:
       AUTO_FETCH: "${AUTO_FETCH:-1}"
       HF_ENDPOINT: "${HF_ENDPOINT:-https://hf-mirror.com}"
       PRELOAD: "1"
+      # ---- 对外语音接口（/v1/audio/speech 等）----
+      # 留空=不鉴权（只在内网 / Tailscale 可达时够用）；填随机串后调用方需带 Bearer
+      AGENT_API_KEY: "${AGENT_API_KEY:-}"
+      # 接口单次最长字数，超出按句末标点截断
+      TTS_MAX_CHARS: "${TTS_MAX_CHARS:-600}"
+      # ---- 合成日志本 / 内置音色 / 界面状态 ----
+      HISTORY_FILE: "/data/history/history.jsonl"
+      PRESET_DIR: "/data/presets"
+      STATE_FILE: "/data/state/ui_state.json"
     volumes:
       # 预训练模型（可用本机已下好的目录，见 .env）
       - ${PRETRAINED_DIR:-./models/pretrained_models}:/repo/GPT_SoVITS/pretrained_models
@@ -25,6 +34,18 @@ services:
       # 参考音色与输出
       - ./references:/data/references
       - ./outputs:/data/outputs
+      # 内置音色清单与文件（见 ui/presets/README.md）
+      - ./presets:/data/presets:ro
+      # 合成日志本（jsonl，可直接用编辑器翻）
+      - ./history:/data/history
+      # 界面选中的音色 / 模型（重启后自动恢复）
+      - ./state:/data/state
+      # ---- 开发用：改代码又不想重建镜像时，取消下面几行注释 ----
+      # - ./app/main.py:/app/voiceui/main.py:ro
+      # - ./app/synth.py:/app/voiceui/synth.py:ro
+      # - ./app/compat_api.py:/app/voiceui/compat_api.py:ro
+      # - ./app/ui_api.py:/app/voiceui/ui_api.py:ro
+      # - ./app/static:/app/voiceui/static:ro
     restart: unless-stopped
     # ---------- 需要 NVIDIA GPU 时：取消下面的注释，并改用 CUDA 版镜像 ----------
     # deploy:

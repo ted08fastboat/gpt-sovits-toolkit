@@ -1,0 +1,65 @@
+{
+  "base_url": {
+    "type": "string",
+    "default": "http://127.0.0.1:8001",
+    "description": "语音服务地址",
+    "hint": "GPT-SoVITS 声音工坊的地址。AstrBot 和它在同一台机器上时用 http://127.0.0.1:8001"
+  },
+  "voice": {
+    "type": "string",
+    "default": "示例·晓晓",
+    "description": "默认音色",
+    "hint": "填音色名即可（支持简写，如 晓晓）。留空则用服务端当前默认音色"
+  },
+  "speed": {
+    "type": "float",
+    "default": 1.0,
+    "description": "默认语速",
+    "hint": "0.8 ~ 1.2 之间比较自然"
+  },
+  "audio_format": {
+    "type": "string",
+    "default": "mp3",
+    "options": [
+      "mp3",
+      "wav",
+      "opus"
+    ],
+    "description": "音频格式",
+    "hint": "国内 IM 平台建议 mp3；想省空间可用 opus"
+  },
+  "timeout": {
+    "type": "int",
+    "default": 120,
+    "min": 20,
+    "max": 300,
+    "description": "合成超时（秒）",
+    "hint": "CPU 推理较慢：40 字约 25 秒、80 字约 50 秒；用 v3 底模还要更慢，建议不低于 120"
+  },
+  "max_chars": {
+    "type": "int",
+    "default": 80,
+    "min": 20,
+    "max": 2000,
+    "description": "单次最长字数",
+    "hint": "超出会按句末标点截断。CPU 推理下约 0.6 秒/字，80 字约 50 秒，别设太大"
+  },
+  "enable_tool": {
+    "type": "bool",
+    "default": true,
+    "description": "启用 LLM 工具 say_aloud",
+    "hint": "开启后模型可以自己决定把回复念出来"
+  },
+  "enable_command": {
+    "type": "bool",
+    "default": true,
+    "description": "启用 /说 与 /音色 指令",
+    "hint": "关闭后只能靠模型自己调用工具"
+  },
+  "text_fallback": {
+    "type": "bool",
+    "default": true,
+    "description": "发不出音频时改发文字",
+    "hint": "有些平台不支持语音消息，开启后会退回纯文字"
+  }
+}

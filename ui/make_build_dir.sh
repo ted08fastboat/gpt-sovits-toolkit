@@ -60,7 +60,11 @@ rm -f "$OUT/GPT-SoVITS/weight.json" "$OUT/GPT-SoVITS/GPT_SoVITS/weight.json" 2>/
 
 echo "== 创建挂载目录 =="
 mkdir -p "$OUT/models/pretrained_models" "$OUT/models/G2PWModel" "$OUT/models/nltk_data" \
-         "$OUT/weights" "$OUT/references" "$OUT/outputs"
+         "$OUT/weights" "$OUT/references" "$OUT/outputs" \
+         "$OUT/history" "$OUT/state" "$OUT/presets"
+
+# 内置音色清单 + 生成脚本（音频文件按 .gitignore 不进仓库，需要时跑 make_presets.py）
+cp -R "$UI/presets/." "$OUT/presets/" 2>/dev/null || true
 
 echo "== 放一份现成参考音色 =="
 # 优先用安装目录（~/GPT-SoVITS/参考音频）；桌面/下载目录在 macOS 上受隐私保护，后台进程可能读不到
