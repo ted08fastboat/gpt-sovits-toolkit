@@ -261,8 +261,13 @@
   <!-- ================= 模型 ================= -->
   <section id="p-model" hidden>
     <div class="sec">
-      <h2>当前使用</h2>
+      <h2>当前使用<span class="aside" id="memHint"></span></h2>
       <dl class="kv" id="modelActive"></dl>
+      <div class="row" style="margin-top:14px">
+        <span class="tag" id="memState"></span>
+        <button id="unloadBtn" onclick="toggleModel()">从内存卸载</button>
+      </div>
+      <p class="hint">卸载只是把模型从内存里放掉，权重文件还在；下次合成或点「加载到内存」会重新读回来（约 10~60 秒）。</p>
     </div>
 
     <div class="sec">
@@ -665,7 +670,15 @@ async function loadModels(){
   var d = await jget('/api/models');
   MODELS = d;
 
-  $('curModel').textContent = d.version ? ('当前 ' + d.version) : '';
+  $('curModel').textContent = d.loaded ? ('当前 ' + (d.version || '未加载')) : '模型未加载';
+
+  var mem = d.rss_mb != null ? ('内存 ' + d.rss_mb + ' MB') : '';
+  $('memState').textContent = (d.loaded ? '已加载' : '未加载') + (mem ? ' · ' + mem : '');
+  $('memState').className = 'tag ' + (d.loaded ? 'ok' : 'warn');
+  var ubtn = $('unloadBtn');
+  ubtn.textContent = d.loaded ? '从内存卸载' : '加载到内存';
+  ubtn.disabled = false;
+  if(!d.loaded) $('memHint').textContent = '';
   $('hVer').textContent = d.version || '—';
   $('hDisk').textContent = d.disk && d.disk.free_gb != null ? (d.disk.free_gb + ' GB 可用') : '—';
 
@@ -691,7 +704,7 @@ async function loadModels(){
       act = '<button class="link" onclick="downloadModel(\'' + esc(p.id) + '\',this)">下载</button>';
     }
     var del = (p.installed && !p.active && p.files && p.files.length)
-      ? ' <button class="link bad" onclick="uninstallPreset(\'' + esc(p.id) + '\')">卸载</button>' : '';
+      ? ' <button class="link bad" onclick="uninstallPreset(\'' + esc(p.id) + '\')">删除文件</button>' : '';
     return '<tr><td>' + esc(p.label) + '<div class="tag">' + esc(p.version) + '</div></td>'
       + '<td class="txt">' + esc(p.note) + '</td>'
       + '<td class="num">' + (p.size ? fmtSize(p.size) : '—') + '</td>'
@@ -712,7 +725,7 @@ async function loadModels(){
         var active = (f.path === (d.active||{}).gpt || f.path === (d.active||{}).sovits);
         return '<tr><td class="mono">' + esc(f.path) + (active?' <span class="tag ok">使用中</span>':'') + '</td>'
           + '<td class="num">' + esc(f.kind) + '</td>'
-          + '<td class="act">' + (active ? '' : '<button class="link bad" onclick="deleteModel(\'' + esc(f.path) + '\')">卸载</button>') + '</td></tr>';
+          + '<td class="act">' + (active ? '' : '<button class="link bad" onclick="deleteModel(\'' + esc(f.path) + '\')">删除文件</button>') + '</td></tr>';
       }).join('') + '</tbody></table>';
   }
 
@@ -725,6 +738,33 @@ async function loadModels(){
   var running = Object.keys(d.tasks||{}).some(function(k){ return d.tasks[k].status === 'running'; });
   if(running && !modelTimer){ modelTimer = setInterval(loadModels, 2000); }
   if(!running && modelTimer){ clearInterval(modelTimer); modelTimer = null; }
+}
+
+async function toggleModel(){
+  var d = MODELS || {};
+  var btn = $('unloadBtn');
+  btn.disabled = true;
+  btn.textContent = '处理中…';
+  try{
+    if(d.loaded){
+      var r = await jpost('/api/models/unload', {});
+      $('memHint').textContent = r.released_mb != null
+        ? ('已释放约 ' + r.released_mb + ' MB')
+        : '已从内存卸载';
+    }else{
+      btn.textContent = '加载中…';
+      await jpost('/api/models/activate', {
+        gpt: (d.active || {}).gpt, sovits: (d.active || {}).sovits
+      });
+      $('memHint').textContent = '已加载到内存';
+    }
+    await loadModels();
+    await loadState();
+  }catch(e){
+    $('memHint').textContent = e.message;
+    btn.disabled = false;
+    btn.textContent = d.loaded ? '从内存卸载' : '加载到内存';
+  }
 }
 
 async function activateModel(gpt, sovits, btn){
@@ -744,7 +784,7 @@ async function downloadModel(id, btn){
 async function uninstallPreset(id){
   var p = (MODELS.presets||[]).find(function(x){ return x.id === id; });
   if(!p) return;
-  if(!confirm('卸载「' + p.label + '」？\n将删除该预设的 ' + p.files.length + ' 个权重文件，约 '
+  if(!confirm('删除「' + p.label + '」的权重文件？\n将删除该预设的 ' + p.files.length + ' 个权重文件，约 '
       + fmtSize(p.files.reduce(function(a,f){ return a + (f.size||0); },0)) + '，之后想用需要重新下载。')) return;
   var freed = 0, err = [];
   for(var i=0;i<p.files.length;i++){
@@ -758,7 +798,7 @@ async function uninstallPreset(id){
   await loadModels();
 }
 async function deleteModel(path){
-  if(!confirm('卸载 ' + path + ' ？\n文件会被删除，之后想用需要重新下载。')) return;
+  if(!confirm('删除文件 ' + path + ' ？\n磁盘上的文件会被删掉，之后想用需要重新下载。')) return;
   try{
     var d = await jpost('/api/models/delete', {path:path});
     alert('已删除，释放 ' + d.freed_mb + ' MB');

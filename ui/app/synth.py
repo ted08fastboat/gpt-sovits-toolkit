@@ -208,6 +208,7 @@ class Engine:
 
     def ensure_weights(self, gpt, sovits):
         m = self._import()
+        self._ensure_ssl(self._module())    # 卸载过的话先把特征模型补回来
         gpt = os.path.abspath(gpt)
         sovits = os.path.abspath(sovits)
         if self.loaded == (gpt, sovits):
@@ -264,6 +265,65 @@ class Engine:
         self.log.append("合成完成 %.1fs，%.2fs 音频（设备 %s）"
                         % (time.time() - t0, len(audio) / sr, self.current_device()))
         return audio, sr
+
+    # ---------- 内存管理 ----------
+    def _module(self):
+        """拿到 inference_webui 模块本体（不同版本存的 key 不一样）。"""
+        mods = self._mods or {}
+        mod = mods.get("module") or mods.get("iw")
+        return mod or sys.modules.get("GPT_SoVITS.inference_webui")
+
+    def _ensure_ssl(self, mod):
+        """卸载后 cnhubert 特征模型是空的，这里按导入时的原样重建。"""
+        if mod is None or getattr(mod, "ssl_model", None) is not None:
+            return
+        cn = getattr(mod, "cnhubert", None)
+        if cn is None:
+            return
+        model = cn.get_model()
+        if getattr(mod, "is_half", False):
+            model = model.half()
+        mod.ssl_model = model.to(getattr(mod, "device", "cpu"))
+        self.log.append("已重新加载 cnhubert 特征模型")
+
+    def unload(self):
+        """把模型从内存里卸掉，不删任何文件；下次合成或切换权重会自动重新加载。
+
+        返回被释放的模块级对象名列表，方便接口回显。
+        """
+        import gc
+
+        names = ("t2s_model", "vq_model", "hifigan_model", "bigvgan_model",
+                 "sv_cn_model", "sr_model", "ssl_model", "t2s_model_cudagraph")
+        with self.lock:
+            mod = self._module()
+            freed = []
+            if mod is not None:
+                for name in names:
+                    if getattr(mod, name, None) is not None:
+                        setattr(mod, name, None)
+                        freed.append(name)
+                try:
+                    mod.cache.clear()          # 参考音频特征缓存
+                except Exception:  # noqa: BLE001
+                    pass
+            self.loaded = None
+            gc.collect()
+            try:                       # 把释放出来的空闲页还给操作系统（glibc）
+                import ctypes
+                ctypes.CDLL("libc.so.6").malloc_trim(0)
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    torch.cuda.ipc_collect()
+            except Exception:  # noqa: BLE001
+                pass
+            self.log.append("已从内存卸载模型（%d 个对象：%s）"
+                            % (len(freed), ", ".join(freed) or "无"))
+            return freed
 
     def save_wav(self, audio, sr, path):
         os.makedirs(os.path.dirname(path), exist_ok=True)

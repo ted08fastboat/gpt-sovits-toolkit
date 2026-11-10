@@ -175,6 +175,18 @@ def _safe(name, default="voice"):
     return out[:48] or default
 
 
+def _rss_mb():
+    """当前进程常驻内存（MB）——卸载模型前后对比最直观。"""
+    try:
+        with open("/proc/self/status", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    return round(int(line.split()[1]) / 1024, 1)
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
 def _disk(path):
     try:
         st = os.statvfs(path)
@@ -300,6 +312,8 @@ def install_ui_api(app, engine, ref_dir, out_dir, state_loader=None, state_saver
         return {
             "active": {"gpt": active_gpt, "sovits": active_sovits},
             "version": _version(),
+            "loaded": bool(getattr(engine, "loaded", None)),
+            "rss_mb": _rss_mb(),
             "gpt_weights": gpt_list,
             "sovits_weights": sovits_list,
             "presets": presets,
@@ -327,6 +341,26 @@ def install_ui_api(app, engine, ref_dir, out_dir, state_loader=None, state_saver
         st.update({"gpt": gpt, "sovits": sovits})
         _save_state(st)
         return {"ok": True, "version": _version(), "gpt": gpt, "sovits": sovits}
+
+    @app.post("/api/models/unload")
+    def model_unload():
+        """把模型从内存里卸掉（不删文件）。下次合成或切换权重会自动重新加载。"""
+        fn = getattr(engine, "unload", None)
+        if fn is None:
+            raise HTTPException(501, "当前引擎不支持卸载（synth.py 版本太旧）")
+        before = _rss_mb()
+        try:
+            freed = fn()
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(500, "卸载失败：%s" % exc) from exc
+        after = _rss_mb()
+        return {
+            "ok": True,
+            "freed": freed,
+            "rss_before_mb": before,
+            "rss_after_mb": after,
+            "released_mb": round(before - after, 1) if (before and after) else None,
+        }
 
     @app.post("/api/models/download")
     def model_download(payload: dict = Body(default={})):
