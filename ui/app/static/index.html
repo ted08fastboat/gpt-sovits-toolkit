@@ -185,6 +185,14 @@
           </select>
         </div>
       </div>
+      <div style="margin-top:14px;max-width:320px">
+        <label>自然度 <span class="tag" id="natHint">句间补呼吸，减少机器味</span></label>
+        <select id="natSel">
+          <option value="0">关闭 · 原样输出</option>
+          <option value="140" selected>轻微 · 句间补呼吸（推荐）</option>
+          <option value="260">明显 · 换气更充分</option>
+        </select>
+      </div>
     </div>
 
     <div class="sec" id="deviceSec" style="display:none">
@@ -489,7 +497,8 @@ async function synthesize(){
     sovits: $('sovitsSel').value,
     variant: $('variantSel').value,
     speed: parseFloat($('speed').value),
-    cut: $('cutSel').value
+    cut: $('cutSel').value,
+    pause_ms: parseInt($('natSel').value, 10) || 0
   };
   var btn = $('goBtn');
   btn.disabled = true; btn.textContent = '合成中';

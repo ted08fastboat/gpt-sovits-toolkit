@@ -149,7 +149,7 @@ def install_compat(app, engine, ref_dir, out_dir, state_loader, weights_getter=N
             raise HTTPException(500, "容器里没有可用的权重，请先检查 /repo 下的 GPT_weights / SoVITS_weights")
         return os.path.join(engine.repo_root, gpt), os.path.join(engine.repo_root, sovits)
 
-    def _synth(text, voice, speed=None, variant=None):
+    def _synth(text, voice, speed=None, variant=None, pause_ms=140):
         text = _trim(text)
         if not text:
             raise HTTPException(400, "text/input 不能为空")
@@ -166,6 +166,7 @@ def install_compat(app, engine, ref_dir, out_dir, state_loader, weights_getter=N
                     variant=variant or "默认",
                     speed=speed,
                     cut="按标点符号切",
+                    pause_ms=pause_ms,
                 )
         except HTTPException:
             raise
@@ -288,7 +289,14 @@ def install_compat(app, engine, ref_dir, out_dir, state_loader, weights_getter=N
         if not variant and payload.get("model") in ("默认", "更稳", "更活"):
             variant = payload.get("model")
 
-        wav, dur, used = _synth(text, voice, speed=speed, variant=variant)
+        try:
+            pause = int(payload.get("pause_ms", 140))
+        except (TypeError, ValueError):
+            pause = 140
+        if payload.get("natural") is False:
+            pause = 0
+
+        wav, dur, used = _synth(text, voice, speed=speed, variant=variant, pause_ms=pause)
         data, ctype = _encode(wav, fmt)
         if (fmt or "wav").lower() not in ("wav", "wave", ""):
             # 非 wav 时把真实格式写进头，便于调用方拿文件后缀

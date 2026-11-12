@@ -20,6 +20,20 @@ import time
 import numpy as np
 import soundfile as sf
 
+def _guess_lang(text):
+    """按文本猜语种。参考文本是日文时还按中文喂，音素全错，听感必然机械。"""
+    t = text or ""
+    if any("\u3040" <= ch <= "\u30ff" for ch in t):   # 平假名 / 片假名
+        return "日文"
+    if any("\uac00" <= ch <= "\ud7af" for ch in t):   # 谚文
+        return "韩文"
+    if re.search(r"[\u4e00-\u9fff]", t):
+        return "中文"
+    if re.search(r"[A-Za-z]", t):
+        return "英文"
+    return "中文"
+
+
 V3V4 = {"v3", "v4"}   # 这两代底模需要额外的采样步数参数
 
 VARIANTS = {
@@ -223,7 +237,7 @@ class Engine:
 
     # ---------- 对外：合成 ----------
     def synth(self, text, ref_wav, ref_text, gpt, sovits, variant="默认", speed=None, cut="按标点符号切",
-              progress=None, sample_steps=None):
+              progress=None, sample_steps=None, prompt_lang=None, text_lang=None, pause_ms=0):
         """返回 (numpy float 音频, 采样率)。progress(done, msg) 可为 None。"""
         m = self._import()
         self.ensure_weights(gpt, sovits)
@@ -234,9 +248,9 @@ class Engine:
         kwargs = dict(
             ref_wav_path=ref_wav,
             prompt_text=ref_text or "",
-            prompt_language=m["i18n"]("中文"),
+            prompt_language=m["i18n"](prompt_lang or _guess_lang(ref_text)),
             text=text,
-            text_language=m["i18n"]("中文"),
+            text_language=m["i18n"](text_lang or _guess_lang(text)),
             how_to_cut=m["i18n"](cut),
             top_k=top_k,
             top_p=top_p,
@@ -262,6 +276,7 @@ class Engine:
         peak = float(np.abs(audio).max()) if audio.size else 0.0
         if 0 < peak < 0.7:
             audio = np.clip(audio * min(3.0, 0.89 / peak), -1.0, 1.0)
+        audio = self._polish(audio, sr, pause_ms)
         self.log.append("合成完成 %.1fs，%.2fs 音频（设备 %s）"
                         % (time.time() - t0, len(audio) / sr, self.current_device()))
         return audio, sr
@@ -324,6 +339,56 @@ class Engine:
             self.log.append("已从内存卸载模型（%d 个对象：%s）"
                             % (len(freed), ", ".join(freed) or "无"))
             return freed
+
+    @staticmethod
+    def _polish(audio, sr, pause_ms=0):
+        """听感润色：句间补呼吸 + 电平归一 + 首尾淡入淡出。纯 numpy，不动磁盘。"""
+        import numpy as _np
+
+        a = _np.asarray(audio, dtype=_np.float32)
+        if a.size == 0:
+            return a
+
+        # 1) 每段内部静音后面补一点空白，制造换气感（机器最缺的就是这个）
+        if pause_ms and pause_ms > 0:
+            win = max(1, int(sr * 0.02))
+            nframe = a.size // win
+            if nframe > 4:
+                rms = _np.sqrt((a[: nframe * win].reshape(nframe, win) ** 2).mean(axis=1) + 1e-12)
+                quiet = rms < max(float(rms.max()) * 0.03, 1e-4)
+                pad = _np.zeros(max(1, int(sr * pause_ms / 2000.0)), dtype=_np.float32)
+                out, i = [], 0
+                while i < nframe:
+                    if quiet[i]:
+                        j = i
+                        while j < nframe and quiet[j]:
+                            j += 1
+                        out.append(a[i * win: j * win])          # 原静音照留
+                        if 0 < i and j < nframe and (j - i) * win >= int(sr * 0.10):
+                            out.append(pad)                       # 再补一口气
+                        i = j
+                    else:
+                        out.append(a[i * win: (i + 1) * win])
+                        i += 1
+                if nframe * win < a.size:
+                    out.append(a[nframe * win:])
+                a = _np.concatenate(out) if out else a
+
+        # 2) 电平平到 -20dBFS 附近，峰值留 0.9，避免忽大忽小
+        peak = float(_np.abs(a).max()) or 1.0
+        a = a / peak * 0.9
+        rms = float(_np.sqrt((a ** 2).mean()) + 1e-12)
+        if rms < 0.1:
+            gain = min(0.1 / rms, 0.97 / max(float(_np.abs(a).max()), 1e-9))
+            a = a * gain
+
+        # 3) 首尾 12ms 淡入淡出，去掉爆音
+        n = int(sr * 0.012)
+        if n > 0 and a.size > 2 * n:
+            ramp = _np.linspace(0.0, 1.0, n, dtype=_np.float32)
+            a[:n] *= ramp
+            a[-n:] *= ramp[::-1]
+        return a
 
     def save_wav(self, audio, sr, path):
         os.makedirs(os.path.dirname(path), exist_ok=True)

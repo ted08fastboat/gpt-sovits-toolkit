@@ -175,6 +175,7 @@ def worker():
                 speed=payload.get("speed"),
                 cut=payload.get("cut", "按标点符号切"),
                 progress=progress,
+                pause_ms=int(payload.get("pause_ms", 140)),
             )
             safe = "".join(ch for ch in payload["text"][:12] if ch.isalnum() or "\u4e00" <= ch <= "\u9fff") or "line"
             fname = "%s_%s.wav" % (safe, time.strftime("%H%M%S"))
